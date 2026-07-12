@@ -210,6 +210,7 @@ if not st.session_state.get("authenticated"):
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
             clean_code = entered_code.strip().upper()
             if clean_code:
+                # 🔴 NEW MASTER ADMIN LOGIN LOCK (Bypasses Google Sheets Engine)
                 if clean_code == "UTS-SUPER-HERO":
                     st.session_state["authenticated"]  = True
                     st.session_state["operator_name"]  = "UTS"
@@ -298,13 +299,14 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
+# 🛠 Safe handling of Tab labels array initialization to completely stop Segmentation Faults
 tab_labels = ["📡  LIVE MONITORING"]
 if is_admin: 
     tab_labels.append("🔐  ADMIN PANEL")
 
 tab_objs = st.tabs(tab_labels)
 tab1 = tab_objs[0]
-tab3 = tab_objs[1] if is_admin else None
+tab3 = tab_objs[1] if (is_admin and len(tab_objs) > 1) else None
 
 raw_json = []
 try:
@@ -438,7 +440,7 @@ if is_admin and tab3:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# AUTOMATIC REFRESH CYCLE
+# SAFE REFRESH CYCLE (Purani working site ki tarah smooth looping)
 # ============================================================
 time.sleep(15)
 st.rerun()
