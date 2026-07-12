@@ -208,16 +208,24 @@ if not st.session_state.get("authenticated"):
         entered_code = st.text_input("🔑 ACTIVATION CODE:", placeholder="UTS-XXXXXXXXXXXX", key="login_code")
 
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
-            if entered_code.strip():
-                with st.spinner("Verifying..."):
-                    result = check_code_api(entered_code.strip(), device_fp)
-                if result.get("success"):
+            clean_code = entered_code.strip().upper()
+            if clean_code:
+                # 🔴 NEW MASTER ADMIN LOGIN CODE (Bypasses Sheets API)
+                if clean_code == "UTS-SUPER-HERO":
                     st.session_state["authenticated"]  = True
-                    st.session_state["operator_name"]  = result.get("operator", "OPERATOR")
-                    st.session_state["auth_code"]      = entered_code.strip().upper()
+                    st.session_state["operator_name"]  = "UTS"
+                    st.session_state["auth_code"]      = "UTS-SUPER-HERO"
                     st.rerun()
                 else:
-                    st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
+                    with st.spinner("Verifying..."):
+                        result = check_code_api(clean_code, device_fp)
+                    if result.get("success"):
+                        st.session_state["authenticated"]  = True
+                        st.session_state["operator_name"]  = result.get("operator", "OPERATOR")
+                        st.session_state["auth_code"]      = clean_code
+                        st.rerun()
+                    else:
+                        st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="le">⚠ Enter your activation code.</div>', unsafe_allow_html=True)
 
@@ -234,7 +242,7 @@ if not st.session_state.get("authenticated"):
 # SYSTEM PARSING
 # ============================================================
 operator_name = st.session_state.get("operator_name", "OPERATOR")
-is_admin      = (operator_name == "UTS")
+is_admin      = (str(operator_name).strip().upper() == "UTS")
 
 @st.cache_data(ttl=60)
 def get_country_cached(num_str):
