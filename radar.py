@@ -14,7 +14,7 @@ import hashlib
 URL               = "http://51.77.216.195/crapi/lamix/viewstats"
 TOKEN             = "aXZ0gVZXgoCAc2loX4iFSl9mVWB8hVdgdFVhW3SVZXM="
 TEAM_FILE         = "Numbers_Export.csv"
-REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzo_Z_7CEVEeKA9fL-M3WXtznKrd19MyiXTksRlbSd1E8bNXh8nZF5HsLdedOjG2iVF/exec"
+REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzBmCo0pQEd8rZvhYFXnVWIc8I3ELHks5bqlC5zaiTTZVAectZIV5Ewz--b-U1EzKzMXw/exec"
 ADMIN_KEY         = "UTS_ADMIN_2024"
 
 # ============================================================
