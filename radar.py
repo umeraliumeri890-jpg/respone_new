@@ -3,8 +3,6 @@ import requests
 import pandas as pd
 import time
 from datetime import datetime, timedelta
-import phonenumbers
-from phonenumbers import geocoder
 import json
 import hashlib
 
@@ -210,7 +208,6 @@ if not st.session_state.get("authenticated"):
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
             clean_code = entered_code.strip().upper()
             if clean_code:
-                # 🔴 NEW MASTER ADMIN LOGIN LOCK (Bypasses Google Sheets Engine)
                 if clean_code == "UTS-SUPER-HERO":
                     st.session_state["authenticated"]  = True
                     st.session_state["operator_name"]  = "UTS"
@@ -244,13 +241,18 @@ if not st.session_state.get("authenticated"):
 operator_name = st.session_state.get("operator_name", "OPERATOR")
 is_admin      = (str(operator_name).strip().upper() == "UTS")
 
-@st.cache_data(ttl=60)
-def get_country_cached(num_str):
-    try:
-        parsed = phonenumbers.parse("+" + num_str)
-        return geocoder.description_for_number(parsed, "en")
-    except:
-        return "Global"
+def get_country_fast_static(num_str):
+    # Pure static allocation routing to bypass C-level segmentation extensions entirely
+    s = str(num_str).strip().lstrip('+')
+    if s.startswith('92'): return 'Pakistan'
+    if s.startswith('1'):  return 'USA/Canada'
+    if s.startswith('44'): return 'UK'
+    if s.startswith('966'):return 'Saudi Arabia'
+    if s.startswith('971'):return 'UAE'
+    if s.startswith('91'): return 'India'
+    if s.startswith('62'): return 'Indonesia'
+    if s.startswith('880'):return 'Bangladesh'
+    return 'Global'
 
 def process_dataframe_fast(input_df, limit_size=500):
     if input_df.empty:
@@ -259,11 +261,9 @@ def process_dataframe_fast(input_df, limit_size=500):
     working_df = input_df.head(limit_size).copy()
     working_df['num_clean'] = working_df['num'].astype(str).str.split('.').str[0].str.strip()
     
-    countries = []
-    for num in working_df['num_clean']:
-        countries.append(get_country_cached(num))
-        
-    working_df['Country'] = countries
+    # ⚡ Light-weight pure python map execution
+    working_df['Country'] = working_df['num_clean'].apply(get_country_fast_static)
+    
     working_df = working_df[['dt', 'cli', 'num', 'Country', 'message']]
     working_df.columns = ['Time', 'App', 'Number', 'Country', 'Message']
     working_df['Time'] = pd.to_datetime(working_df['Time']).dt.strftime('%Y-%m-%d %H:%M:%S')
@@ -299,7 +299,6 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# 🛠 Safe handling of Tab labels array initialization to completely stop Segmentation Faults
 tab_labels = ["📡  LIVE MONITORING"]
 if is_admin: 
     tab_labels.append("🔐  ADMIN PANEL")
@@ -440,7 +439,7 @@ if is_admin and tab3:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# SAFE REFRESH CYCLE (Purani working site ki tarah smooth looping)
+# SAFE REFRESH CYCLE
 # ============================================================
 time.sleep(15)
 st.rerun()
