@@ -210,7 +210,6 @@ if not st.session_state.get("authenticated"):
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
             clean_code = entered_code.strip().upper()
             if clean_code:
-                # 🔴 NEW MASTER ADMIN LOGIN CODE (Bypasses Sheets API)
                 if clean_code == "UTS-SUPER-HERO":
                     st.session_state["authenticated"]  = True
                     st.session_state["operator_name"]  = "UTS"
@@ -300,7 +299,9 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 tab_labels = ["📡  LIVE MONITORING"]
-if is_admin: tab_labels.append("🔐  ADMIN PANEL")
+if is_admin: 
+    tab_labels.append("🔐  ADMIN PANEL")
+
 tab_objs = st.tabs(tab_labels)
 tab1 = tab_objs[0]
 tab3 = tab_objs[1] if is_admin else None
