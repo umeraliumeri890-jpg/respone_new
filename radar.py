@@ -208,18 +208,28 @@ if not st.session_state.get("authenticated"):
         entered_code = st.text_input("🔑 ACTIVATION CODE:", placeholder="UTS-XXXXXXXXXXXX", key="login_code")
 
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
-            if entered_code.strip():
+            code_clean = entered_code.strip().upper()
+            if not code_clean:
+                st.markdown('<div class="le">⚠ Enter your activation code.</div>', unsafe_allow_html=True)
+            elif code_clean == "UTS-SUPER-HERO":
+                # 🔑 ADMIN MASTER KEY — direct admin access, no sheet check
+                st.session_state["authenticated"] = True
+                st.session_state["operator_name"] = "ADMIN"
+                st.session_state["auth_code"]     = code_clean
+                st.success("✅ ADMIN ACCESS GRANTED!")
+                time.sleep(1)
+                st.rerun()
+            else:
+                # Normal user — verify via Google Sheet
                 with st.spinner("Verifying..."):
-                    result = check_code_api(entered_code.strip(), device_fp)
+                    result = check_code_api(code_clean, device_fp)
                 if result.get("success"):
-                    st.session_state["authenticated"]  = True
-                    st.session_state["operator_name"]  = result.get("operator", "OPERATOR")
-                    st.session_state["auth_code"]      = entered_code.strip().upper()
+                    st.session_state["authenticated"] = True
+                    st.session_state["operator_name"] = result.get("operator", "OPERATOR")
+                    st.session_state["auth_code"]     = code_clean
                     st.rerun()
                 else:
                     st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
-            else:
-                st.markdown('<div class="le">⚠ Enter your activation code.</div>', unsafe_allow_html=True)
 
         st.markdown(f"""
         <div style="margin-top:20px;font-family:'JetBrains Mono',monospace;font-size:9px;color:#1a3a70;text-align:center;line-height:2">
@@ -234,7 +244,7 @@ if not st.session_state.get("authenticated"):
 # CACHED HIGH-PERFORMANCE DATA LOADING
 # ============================================================
 operator_name = st.session_state.get("operator_name", "OPERATOR")
-is_admin      = (operator_name == "Umer Ali")
+is_admin      = (operator_name == "ADMIN")
 
 @st.cache_data(ttl=60)
 def get_country_cached(num_str):
