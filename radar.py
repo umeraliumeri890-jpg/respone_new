@@ -11,7 +11,7 @@ import hashlib
 # ============================================================
 URL               = "http://51.77.216.195/crapi/lamix/viewstats"
 TOKEN             = "aXZ0gVZXgoCAc2loX4iFSl9mVWB8hVdgdFVhW3SVZXM="
-REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzo_Z_7CEVEeKA9fL-M3WXtznKrd19MyiXTksRlbSd1E8bNXh8nZF5HsLdedOjG2iVF/exec"
+REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzBmCo0pQEd8rZvhYFXnVWIc8I3ELHks5bqlC5zaiTTZVAectZIV5Ewz--b-U1EzKzMXw/exec"
 ADMIN_KEY         = "UTS_ADMIN_2024"
 
 # ============================================================
@@ -260,7 +260,6 @@ def process_dataframe_fast(input_df, limit_size=500):
     working_df = input_df.head(limit_size).copy()
     working_df['num_clean'] = working_df['num'].astype(str).str.split('.').str[0].str.strip()
     
-    # Fast static routing matrix mapping (0% overhead)
     working_df['Country'] = working_df['num_clean'].apply(get_country_fast_static)
     
     working_df = working_df[['dt', 'cli', 'num', 'Country', 'message']]
