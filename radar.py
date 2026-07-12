@@ -11,7 +11,7 @@ import hashlib
 # ============================================================
 URL               = "http://51.77.216.195/crapi/lamix/viewstats"
 TOKEN             = "aXZ0gVZXgoCAc2loX4iFSl9mVWB8hVdgdFVhW3SVZXM="
-REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzBmCo0pQEd8rZvhYFXnVWIc8I3ELHks5bqlC5zaiTTZVAectZIV5Ewz--b-U1EzKzMXw/exec"
+REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbxl3t2bS_H4P-uN6y2Z1R8P8Xz1N6r5Tf5zM_vK5W3Xz1B-Z1_Z1B-Z1/exec" # Apka current active url
 ADMIN_KEY         = "UTS_ADMIN_2024"
 
 # ============================================================
@@ -236,22 +236,58 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # ============================================================
-# STATIC PARSING UTILITIES
+# GLOBAL EXTENDED PARSING MATRIX
 # ============================================================
 operator_name = st.session_state.get("operator_name", "OPERATOR")
 is_admin      = (str(operator_name).strip().upper() in ["UTS", "UMER ALI"])
 
 def get_country_fast_static(num_str):
-    s = str(num_str).strip().lstrip('+')
-    if s.startswith('92'): return 'Pakistan'
-    if s.startswith('1'):  return 'USA/Canada'
-    if s.startswith('44'): return 'UK'
-    if s.startswith('966'):return 'Saudi Arabia'
-    if s.startswith('971'):return 'UAE'
-    if s.startswith('91'): return 'India'
-    if s.startswith('62'): return 'Indonesia'
-    if s.startswith('880'):return 'Bangladesh'
-    return 'Global'
+    s = str(num_str).strip().lstrip('+').lstrip('0')
+    if not s: return 'Unknown'
+    
+    # 3-Digit Matches (Precise Mapping)
+    p3 = s[:3]
+    m3 = {
+        '966': 'Saudi Arabia', '971': 'UAE', '965': 'Kuwait', '968': 'Oman', '974': 'Qatar', '973': 'Bahrain',
+        '880': 'Bangladesh', '351': 'Portugal', '359': 'Bulgaria', '370': 'Lithuania', '371': 'Latvia', 
+        '372': 'Estonia', '380': 'Ukraine', '381': 'Serbia', '382': 'Montenegro', '385': 'Croatia',
+        '389': 'North Macedonia', '420': 'Czechia', '421': 'Slovakia', '501': 'Belize', '502': 'Guatemala', 
+        '503': 'El Salvador', '504': 'Honduras', '505': 'Nicaragua', '506': 'Costa Rica', '507': 'Panama',
+        '593': 'Ecuador', '595': 'Paraguay', '598': 'Uruguay', '961': 'Lebanon', '962': 'Jordan',
+        '963': 'Syria', '964': 'Iraq', '967': 'Yemen', '972': 'Israel', '975': 'Bhutan', '976': 'Mongolia',
+        '977': 'Nepal', '992': 'Tajikistan', '993': 'Turkmenistan', '994': 'Azerbaijan', '995': 'Georgia',
+        '996': 'Kyrgyzstan', '998': 'Uzbekistan'
+    }
+    if p3 in m3: return m3[p3]
+
+    # 2-Digit Matches
+    p2 = s[:2]
+    m2 = {
+        '92': 'Pakistan', '91': 'India', '44': 'UK', '62': 'Indonesia', '60': 'Malaysia', '65': 'Singapore',
+        '66': 'Thailand', '63': 'Philippines', '81': 'Japan', '82': 'South Korea', '84': 'Vietnam',
+        '90': 'Turkey', '94': 'Sri Lanka', '95': 'Myanmar', '98': 'Iran', '20': 'Egypt', '27': 'South Africa',
+        '30': 'Greece', '31': 'Netherlands', '32': 'Belgium', '33': 'France', '34': 'Spain', '36': 'Hungary',
+        '39': 'Italy', '40': 'Romania', '41': 'Switzerland', '43': 'Austria', '45': 'Denmark', '46': 'Sweden',
+        '47': 'Norway', '48': 'Poland', '49': 'Germany', '51': 'Peru', '52': 'Mexico', '54': 'Argentina',
+        '55': 'Brazil', '56': 'Chile', '57': 'Colombia', '58': 'Venezuela', '212': 'Morocco', '213': 'Algeria',
+        '216': 'Tunisia', '218': 'Libya', '234': 'Nigeria', '254': 'Kenya', '256': 'Uganda', '255': 'Tanzania',
+        '233': 'Ghana', '61': 'Australia', '64': 'New Zealand', '70': 'Russia', '77': 'Kazakhstan'
+    }
+    if p2 in m2: return m2[p2]
+    if s.startswith('7'): return 'Russia/Kazakhstan'
+
+    # 1-Digit Matches
+    if s.startswith('1'): return 'USA/Canada'
+
+    # Fallback classifications via zones instead of plain "Global"
+    if s[0] == '2': return 'Africa Region'
+    if s[0] == '3' or s[0] == '4': return 'Europe Region'
+    if s[0] == '5': return 'Americas Region'
+    if s[0] == '6': return 'Oceania/Asia'
+    if s[0] == '8': return 'East Asia'
+    if s[0] == '9': return 'Middle East/Asia'
+    
+    return 'International Stream'
 
 def process_dataframe_fast(input_df, limit_size=500):
     if input_df.empty:
