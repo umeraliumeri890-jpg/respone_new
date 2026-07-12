@@ -3,15 +3,18 @@ import requests
 import pandas as pd
 import time
 from datetime import datetime, timedelta
+import phonenumbers
+from phonenumbers import geocoder
 import json
 import hashlib
 
 # ============================================================
-# CONFIG
+# CONFIG (UPDATED WITH NEW SPREADSHEET REGISTRY)
 # ============================================================
 URL               = "http://51.77.216.195/crapi/lamix/viewstats"
 TOKEN             = "aXZ0gVZXgoCAc2loX4iFSl9mVWB8hVdgdFVhW3SVZXM="
-REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzBmCo0pQEd8rZvhYFXnVWIc8I3ELHks5bqlC5zaiTTZVAectZIV5Ewz--b-U1EzKzMXw/exec"
+TEAM_FILE         = "Numbers_Export.csv"
+REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzo_Z_7CEVEeKA9fL-M3WXtznKrd19MyiXTksRlbSd1E8bNXh8nZF5HsLdedOjG2iVF/exec"
 ADMIN_KEY         = "UTS_ADMIN_2024"
 
 # ============================================================
@@ -206,23 +209,16 @@ if not st.session_state.get("authenticated"):
         entered_code = st.text_input("🔑 ACTIVATION CODE:", placeholder="UTS-XXXXXXXXXXXX", key="login_code")
 
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
-            clean_code = entered_code.strip().upper()
-            if clean_code:
-                if clean_code == "UTS-SUPER-HERO":
+            if entered_code.strip():
+                with st.spinner("Verifying..."):
+                    result = check_code_api(entered_code.strip(), device_fp)
+                if result.get("success"):
                     st.session_state["authenticated"]  = True
-                    st.session_state["operator_name"]  = "UTS"
-                    st.session_state["auth_code"]      = "UTS-SUPER-HERO"
+                    st.session_state["operator_name"]  = result.get("operator", "OPERATOR")
+                    st.session_state["auth_code"]      = entered_code.strip().upper()
                     st.rerun()
                 else:
-                    with st.spinner("Verifying..."):
-                        result = check_code_api(clean_code, device_fp)
-                    if result.get("success"):
-                        st.session_state["authenticated"]  = True
-                        st.session_state["operator_name"]  = result.get("operator", "OPERATOR")
-                        st.session_state["auth_code"]      = clean_code
-                        st.rerun()
-                    else:
-                        st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
+                    st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
             else:
                 st.markdown('<div class="le">⚠ Enter your activation code.</div>', unsafe_allow_html=True)
 
@@ -236,22 +232,32 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # ============================================================
-# STATIC PARSING UTILITIES
+# CACHED HIGH-PERFORMANCE DATA LOADING
 # ============================================================
 operator_name = st.session_state.get("operator_name", "OPERATOR")
-is_admin      = (str(operator_name).strip().upper() in ["UTS", "UMER ALI"])
+is_admin      = (operator_name == "Umer Ali")
 
-def get_country_fast_static(num_str):
-    s = str(num_str).strip().lstrip('+')
-    if s.startswith('92'): return 'Pakistan'
-    if s.startswith('1'):  return 'USA/Canada'
-    if s.startswith('44'): return 'UK'
-    if s.startswith('966'):return 'Saudi Arabia'
-    if s.startswith('971'):return 'UAE'
-    if s.startswith('91'): return 'India'
-    if s.startswith('62'): return 'Indonesia'
-    if s.startswith('880'):return 'Bangladesh'
-    return 'Global'
+@st.cache_data(ttl=60)
+def get_country_cached(num_str):
+    try:
+        parsed = phonenumbers.parse("+" + num_str)
+        return geocoder.description_for_number(parsed, "en")
+    except:
+        return "Global"
+
+@st.cache_data(ttl=300)
+def load_team_dataframe():
+    try:
+        df = pd.read_csv(TEAM_FILE, low_memory=False)
+        df['Phone Number'] = df['Phone Number'].astype(str).str.split('.').str[0].str.strip()
+        df['Status']       = df['Status'].fillna('')
+        df['MemberName']   = df['Status'].str.replace('Allocated: ', '', case=False, regex=False).str.strip()
+        df = df[df['Phone Number'] != '']
+        return df.set_index('Phone Number')[['Range', 'MemberName']].to_dict('index')
+    except:
+        return {}
+
+team_data = load_team_dataframe()
 
 def process_dataframe_fast(input_df, limit_size=500):
     if input_df.empty:
@@ -260,19 +266,46 @@ def process_dataframe_fast(input_df, limit_size=500):
     working_df = input_df.head(limit_size).copy()
     working_df['num_clean'] = working_df['num'].astype(str).str.split('.').str[0].str.strip()
     
-    working_df['Country'] = working_df['num_clean'].apply(get_country_fast_static)
+    team_members = []
+    ranges = []
+    countries = []
     
-    working_df = working_df[['dt', 'cli', 'num', 'Country', 'message']]
-    working_df.columns = ['Time', 'App', 'Number', 'Country', 'Message']
+    for num in working_df['num_clean']:
+        countries.append(get_country_cached(num))
+        if num in team_data:
+            name = team_data[num]['MemberName']
+            if name in ["UTS_Umer1", "UTS_Khadija"]:
+                team_members.append("")
+                ranges.append("")
+            else:
+                team_members.append(name)
+                ranges.append(team_data[num]['Range'])
+        else:
+            team_members.append("")
+            ranges.append("")
+            
+    working_df['Team Member'] = team_members
+    working_df['Range'] = ranges
+    working_df['Country'] = countries
+    
+    working_df = working_df[['dt', 'cli', 'num', 'Country', 'message', 'Team Member', 'Range']]
+    working_df.columns = ['Time', 'App', 'Number', 'Country', 'Message', 'Team Member', 'Range']
     working_df['Time'] = pd.to_datetime(working_df['Time']).dt.strftime('%Y-%m-%d %H:%M:%S')
     return working_df
 
+def highlight_team(row):
+    if row.get('Team Member', '') != "":
+        return ['background-color:rgba(0,170,255,.08);color:#00aaff;font-weight:bold;border-right:3px solid #00aaff'] * len(row)
+    return [''] * len(row)
+
 col_cfg = {
-    "Time":    st.column_config.TextColumn("TIMESTAMP",     width="medium"),
-    "App":     st.column_config.TextColumn("IDENT/CLI",     width="small"),
-    "Number":  st.column_config.TextColumn("DATA STREAM",   width="medium"),
-    "Country": st.column_config.TextColumn("LOCATION",      width="small"),
-    "Message": st.column_config.TextColumn("MESSAGE",       width="large"),
+    "Time":        st.column_config.TextColumn("TIMESTAMP",     width="medium"),
+    "App":         st.column_config.TextColumn("IDENT/CLI",     width="small"),
+    "Number":      st.column_config.TextColumn("DATA STREAM",   width="medium"),
+    "Country":     st.column_config.TextColumn("LOCATION",      width="small"),
+    "Message":     st.column_config.TextColumn("MESSAGE",       width="large"),
+    "Team Member": st.column_config.TextColumn("OPERATOR",      width="medium"),
+    "Range":       st.column_config.TextColumn("NETWORK RANGE", width="large"),
 }
 
 # ============================================================
@@ -298,12 +331,10 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 tab_labels = ["📡  LIVE MONITORING"]
-if is_admin: 
-    tab_labels.append("🔐  ADMIN PANEL")
-
+if is_admin: tab_labels.append("🔐  ADMIN PANEL")
 tab_objs = st.tabs(tab_labels)
 tab1 = tab_objs[0]
-tab3 = tab_objs[1] if (is_admin and len(tab_objs) > 1) else None
+tab3 = tab_objs[1] if is_admin else None
 
 raw_json = []
 try:
@@ -363,14 +394,14 @@ with tab1:
         if not df_tgt.empty:
             md = process_dataframe_fast(df_tgt, limit_size=25)
             if not md.empty:
-                st.dataframe(md, use_container_width=True, height=280, hide_index=True, column_config=col_cfg)
+                st.dataframe(md.style.apply(highlight_team, axis=1), use_container_width=True, height=280, hide_index=True, column_config=col_cfg)
         else:
             st.caption("▸ No packets for current target agent.")
 
         st.markdown('<div class="sl">GLOBAL LIVE NETWORK STREAM</div>', unsafe_allow_html=True)
         gd = process_dataframe_fast(df, limit_size=int(msg_limit))
         if not gd.empty:
-            st.dataframe(gd, use_container_width=True, height=500, hide_index=True, column_config=col_cfg)
+            st.dataframe(gd.style.apply(highlight_team, axis=1), use_container_width=True, height=500, hide_index=True, column_config=col_cfg)
     else:
         st.warning("No live data streams found at this moment.")
 
@@ -437,7 +468,7 @@ if is_admin and tab3:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# SAFE REFRESH CYCLE
+# AUTOMATIC REFRESH CYCLE
 # ============================================================
 time.sleep(15)
 st.rerun()
