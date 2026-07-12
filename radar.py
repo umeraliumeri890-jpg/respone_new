@@ -13,8 +13,7 @@ import hashlib
 # ============================================================
 URL               = "http://51.77.216.195/crapi/lamix/viewstats"
 TOKEN             = "aXZ0gVZXgoCAc2loX4iFSl9mVWB8hVdgdFVhW3SVZXM="
-TEAM_FILE         = "Numbers_Export.csv"
-REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzo_Z_7CEVEeKA9fL-M3WXtznKrd19MyiXTksRlbSd1E8bNXh8nZF5HsLdedOjG2iVF/exec"
+REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzBmCo0pQEd8rZvhYFXnVWIc8I3ELHks5bqlC5zaiTTZVAectZIV5Ewz--b-U1EzKzMXw/exec"
 ADMIN_KEY         = "UTS_ADMIN_2024"
 
 # ============================================================
@@ -232,10 +231,10 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # ============================================================
-# CACHED HIGH-PERFORMANCE DATA LOADING
+# SYSTEM PARSING
 # ============================================================
 operator_name = st.session_state.get("operator_name", "OPERATOR")
-is_admin      = (operator_name == "Umer Ali")
+is_admin      = (operator_name == "UTS")
 
 @st.cache_data(ttl=60)
 def get_country_cached(num_str):
@@ -245,22 +244,6 @@ def get_country_cached(num_str):
     except:
         return "Global"
 
-@st.cache_data(ttl=300)
-def load_team_dataframe():
-    try:
-        # Dtype Warning ko fix karne ke liye low_memory=False lagaya
-        df = pd.read_csv(TEAM_FILE, low_memory=False)
-        df['Phone Number'] = df['Phone Number'].astype(str).str.split('.').str[0].str.strip()
-        df['Status']       = df['Status'].fillna('')
-        df['MemberName']   = df['Status'].str.replace('Allocated: ', '', case=False, regex=False).str.strip()
-        df = df[df['Phone Number'] != '']
-        return df.set_index('Phone Number')[['Range', 'MemberName']].to_dict('index')
-    except:
-        return {}
-
-team_data = load_team_dataframe()
-
-# Ultra-fast Dictionary lookup loop vectorization se bachne ke liye
 def process_dataframe_fast(input_df, limit_size=500):
     if input_df.empty:
         return pd.DataFrame()
@@ -268,48 +251,22 @@ def process_dataframe_fast(input_df, limit_size=500):
     working_df = input_df.head(limit_size).copy()
     working_df['num_clean'] = working_df['num'].astype(str).str.split('.').str[0].str.strip()
     
-    team_members = []
-    ranges = []
     countries = []
-    
-    # Fast native zip loop (is se memory segmentation fault bilkul ruk jayega)
     for num in working_df['num_clean']:
         countries.append(get_country_cached(num))
-        if num in team_data:
-            name = team_data[num]['MemberName']
-            if name in ["UTS_Umer1", "UTS_Khadija"]:
-                team_members.append("")
-                ranges.append("")
-            else:
-                team_members.append(name)
-                ranges.append(team_data[num]['Range'])
-        else:
-            team_members.append("")
-            ranges.append("")
-            
-    working_df['Team Member'] = team_members
-    working_df['Range'] = ranges
+        
     working_df['Country'] = countries
-    
-    # Format and clean columns
-    working_df = working_df[['dt', 'cli', 'num', 'Country', 'message', 'Team Member', 'Range']]
-    working_df.columns = ['Time', 'App', 'Number', 'Country', 'Message', 'Team Member', 'Range']
+    working_df = working_df[['dt', 'cli', 'num', 'Country', 'message']]
+    working_df.columns = ['Time', 'App', 'Number', 'Country', 'Message']
     working_df['Time'] = pd.to_datetime(working_df['Time']).dt.strftime('%Y-%m-%d %H:%M:%S')
     return working_df
 
-def highlight_team(row):
-    if row.get('Team Member', '') != "":
-        return ['background-color:rgba(0,170,255,.08);color:#00aaff;font-weight:bold;border-right:3px solid #00aaff'] * len(row)
-    return [''] * len(row)
-
 col_cfg = {
-    "Time":        st.column_config.TextColumn("TIMESTAMP",     width="medium"),
-    "App":         st.column_config.TextColumn("IDENT/CLI",     width="small"),
-    "Number":      st.column_config.TextColumn("DATA STREAM",   width="medium"),
-    "Country":     st.column_config.TextColumn("LOCATION",      width="small"),
-    "Message":     st.column_config.TextColumn("MESSAGE",       width="large"),
-    "Team Member": st.column_config.TextColumn("OPERATOR",      width="medium"),
-    "Range":       st.column_config.TextColumn("NETWORK RANGE", width="large"),
+    "Time":    st.column_config.TextColumn("TIMESTAMP",     width="medium"),
+    "App":     st.column_config.TextColumn("IDENT/CLI",     width="small"),
+    "Number":  st.column_config.TextColumn("DATA STREAM",   width="medium"),
+    "Country": st.column_config.TextColumn("LOCATION",      width="small"),
+    "Message": st.column_config.TextColumn("MESSAGE",       width="large"),
 }
 
 # ============================================================
@@ -392,21 +349,20 @@ with tab1:
         </div>
         """, unsafe_allow_html=True)
 
-        # Optimization: Target Stream logic ko optimize kiya
         df_tgt = df[df['cli'].str.contains(target_cli, case=False, na=False)].copy()
         
         st.markdown(f'<div class="sl">LIVE TARGET TRACKER — AGENT: {target_cli.upper()}</div>', unsafe_allow_html=True)
         if not df_tgt.empty:
             md = process_dataframe_fast(df_tgt, limit_size=25)
             if not md.empty:
-                st.dataframe(md.style.apply(highlight_team, axis=1), use_container_width=True, height=280, hide_index=True, column_config=col_cfg)
+                st.dataframe(md, use_container_width=True, height=280, hide_index=True, column_config=col_cfg)
         else:
             st.caption("▸ No packets for current target agent.")
 
         st.markdown('<div class="sl">GLOBAL LIVE NETWORK STREAM</div>', unsafe_allow_html=True)
         gd = process_dataframe_fast(df, limit_size=int(msg_limit))
         if not gd.empty:
-            st.dataframe(gd.style.apply(highlight_team, axis=1), use_container_width=True, height=500, hide_index=True, column_config=col_cfg)
+            st.dataframe(gd, use_container_width=True, height=500, hide_index=True, column_config=col_cfg)
     else:
         st.warning("No live data streams found at this moment.")
 
