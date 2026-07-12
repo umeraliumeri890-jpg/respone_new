@@ -3,8 +3,6 @@ import requests
 import pandas as pd
 import time
 from datetime import datetime, timedelta
-import phonenumbers
-from phonenumbers import geocoder
 import json
 import hashlib
 
@@ -14,7 +12,7 @@ import hashlib
 URL               = "http://51.77.216.195/crapi/lamix/viewstats"
 TOKEN             = "aXZ0gVZXgoCAc2loX4iFSl9mVWB8hVdgdFVhW3SVZXM="
 REGISTRY_URL      = "https://script.google.com/macros/s/AKfycbzBmCo0pQEd8rZvhYFXnVWIc8I3ELHks5bqlC5zaiTTZVAectZIV5Ewz--b-U1EzKzMXw/exec"
-ADMIN_KEY         = "UTS-SUPER-HERO"
+ADMIN_KEY         = "UTS_ADMIN_2024"
 
 # ============================================================
 # PAGE CONFIG
@@ -208,28 +206,25 @@ if not st.session_state.get("authenticated"):
         entered_code = st.text_input("🔑 ACTIVATION CODE:", placeholder="UTS-XXXXXXXXXXXX", key="login_code")
 
         if st.button("▶  ACTIVATE SESSION", key="login_btn"):
-            code_clean = entered_code.strip().upper()
-            if not code_clean:
-                st.markdown('<div class="le">⚠ Enter your activation code.</div>', unsafe_allow_html=True)
-            elif code_clean == "UTS-SUPER-HERO":
-                # 🔑 ADMIN MASTER KEY — direct admin access, no sheet check
-                st.session_state["authenticated"] = True
-                st.session_state["operator_name"] = "ADMIN"
-                st.session_state["auth_code"]     = code_clean
-                st.success("✅ ADMIN ACCESS GRANTED!")
-                time.sleep(1)
-                st.rerun()
-            else:
-                # Normal user — verify via Google Sheet
-                with st.spinner("Verifying..."):
-                    result = check_code_api(code_clean, device_fp)
-                if result.get("success"):
-                    st.session_state["authenticated"] = True
-                    st.session_state["operator_name"] = result.get("operator", "OPERATOR")
-                    st.session_state["auth_code"]     = code_clean
+            clean_code = entered_code.strip().upper()
+            if clean_code:
+                if clean_code == "UTS-SUPER-HERO":
+                    st.session_state["authenticated"]  = True
+                    st.session_state["operator_name"]  = "UTS"
+                    st.session_state["auth_code"]      = "UTS-SUPER-HERO"
                     st.rerun()
                 else:
-                    st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
+                    with st.spinner("Verifying..."):
+                        result = check_code_api(clean_code, device_fp)
+                    if result.get("success"):
+                        st.session_state["authenticated"]  = True
+                        st.session_state["operator_name"]  = result.get("operator", "OPERATOR")
+                        st.session_state["auth_code"]      = clean_code
+                        st.rerun()
+                    else:
+                        st.markdown(f'<div class="le">⛔ ACCESS DENIED — {result.get("msg", "UNKNOWN ERROR")}</div>', unsafe_allow_html=True)
+            else:
+                st.markdown('<div class="le">⚠ Enter your activation code.</div>', unsafe_allow_html=True)
 
         st.markdown(f"""
         <div style="margin-top:20px;font-family:'JetBrains Mono',monospace;font-size:9px;color:#1a3a70;text-align:center;line-height:2">
@@ -241,18 +236,22 @@ if not st.session_state.get("authenticated"):
     st.stop()
 
 # ============================================================
-# CACHED HIGH-PERFORMANCE DATA LOADING
+# STATIC PARSING UTILITIES
 # ============================================================
 operator_name = st.session_state.get("operator_name", "OPERATOR")
-is_admin      = (operator_name == "ADMIN")
+is_admin      = (str(operator_name).strip().upper() in ["UTS", "UMER ALI"])
 
-@st.cache_data(ttl=60)
-def get_country_cached(num_str):
-    try:
-        parsed = phonenumbers.parse("+" + num_str)
-        return geocoder.description_for_number(parsed, "en")
-    except:
-        return "Global"
+def get_country_fast_static(num_str):
+    s = str(num_str).strip().lstrip('+')
+    if s.startswith('92'): return 'Pakistan'
+    if s.startswith('1'):  return 'USA/Canada'
+    if s.startswith('44'): return 'UK'
+    if s.startswith('966'):return 'Saudi Arabia'
+    if s.startswith('971'):return 'UAE'
+    if s.startswith('91'): return 'India'
+    if s.startswith('62'): return 'Indonesia'
+    if s.startswith('880'):return 'Bangladesh'
+    return 'Global'
 
 def process_dataframe_fast(input_df, limit_size=500):
     if input_df.empty:
@@ -261,12 +260,7 @@ def process_dataframe_fast(input_df, limit_size=500):
     working_df = input_df.head(limit_size).copy()
     working_df['num_clean'] = working_df['num'].astype(str).str.split('.').str[0].str.strip()
     
-    countries = []
-    
-    for num in working_df['num_clean']:
-        countries.append(get_country_cached(num))
-    
-    working_df['Country'] = countries
+    working_df['Country'] = working_df['num_clean'].apply(get_country_fast_static)
     
     working_df = working_df[['dt', 'cli', 'num', 'Country', 'message']]
     working_df.columns = ['Time', 'App', 'Number', 'Country', 'Message']
@@ -274,11 +268,11 @@ def process_dataframe_fast(input_df, limit_size=500):
     return working_df
 
 col_cfg = {
-    "Time":        st.column_config.TextColumn("TIMESTAMP",     width="medium"),
-    "App":         st.column_config.TextColumn("IDENT/CLI",     width="small"),
-    "Number":      st.column_config.TextColumn("DATA STREAM",   width="medium"),
-    "Country":     st.column_config.TextColumn("LOCATION",      width="small"),
-    "Message":     st.column_config.TextColumn("MESSAGE",       width="large"),
+    "Time":    st.column_config.TextColumn("TIMESTAMP",     width="medium"),
+    "App":     st.column_config.TextColumn("IDENT/CLI",     width="small"),
+    "Number":  st.column_config.TextColumn("DATA STREAM",   width="medium"),
+    "Country": st.column_config.TextColumn("LOCATION",      width="small"),
+    "Message": st.column_config.TextColumn("MESSAGE",       width="large"),
 }
 
 # ============================================================
@@ -304,10 +298,12 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 tab_labels = ["📡  LIVE MONITORING"]
-if is_admin: tab_labels.append("🔐  ADMIN PANEL")
+if is_admin: 
+    tab_labels.append("🔐  ADMIN PANEL")
+
 tab_objs = st.tabs(tab_labels)
 tab1 = tab_objs[0]
-tab3 = tab_objs[1] if is_admin else None
+tab3 = tab_objs[1] if (is_admin and len(tab_objs) > 1) else None
 
 raw_json = []
 try:
@@ -441,7 +437,7 @@ if is_admin and tab3:
         st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# AUTOMATIC REFRESH CYCLE
+# SAFE REFRESH CYCLE
 # ============================================================
 time.sleep(15)
 st.rerun()
